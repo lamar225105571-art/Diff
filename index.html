@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Newton-Raphson</title>
+
+<style>
+:root{--bg:#fff;--fg:#1a1a1a;--mut:#666;--bd:#d9d9d9;--ac:#c0392b;--cv:#2563eb;--hd:#f2f2f2;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161616;--fg:#eee;--mut:#aaa;--bd:#3a3a3a;--ac:#ff6b5b;--cv:#6ea0ff;--hd:#242424;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#161616;--fg:#eee;--mut:#aaa;--bd:#3a3a3a;--ac:#ff6b5b;--cv:#6ea0ff;--hd:#242424;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:system-ui,"Segoe UI",Tahoma,sans-serif;margin:0;padding:16px;max-width:900px;margin-inline:auto;line-height:1.6}
+h1{font-size:1.3rem;margin:.2em 0 .6em}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+label{display:flex;flex-direction:column;font-size:.85rem;color:var(--mut);gap:3px}
+input{direction:ltr;text-align:left;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:6px;padding:8px;font-size:1rem;font-family:monospace}
+button{background:var(--ac);color:#fff;border:0;border-radius:6px;padding:9px 20px;font-size:1rem;cursor:pointer}
+.box{border:1px solid var(--bd);border-radius:8px;padding:10px 14px;margin:14px 0;direction:ltr;text-align:left;font-family:monospace;font-size:.92rem;overflow-x:auto}
+.sc{overflow-x:auto}
+table{border-collapse:collapse;width:100%;direction:ltr;font-family:monospace;font-size:.9rem}
+th,td{border:1px solid var(--bd);padding:6px 10px;text-align:center;white-space:nowrap}
+th{background:var(--hd)}tr.last td{background:var(--hd);font-weight:bold}
+canvas{width:100%;height:360px;border:1px solid var(--bd);border-radius:8px;direction:ltr}
+.err{color:var(--ac)}
+</style></head><body>
+<h1>طريقة <bdi>Newton-Raphson</bdi></h1>
+<div class="row">
+<label>الدالة <bdi>f(x)</bdi><input id="f" value="x^4 - 11*x + 8" size="22"></label>
+<label><bdi>x₀</bdi><input id="x0" value="2" size="6"></label>
+<button onclick="run()">احسب</button></div>
+<div id="out"></div>
+<script>
+const $=id=>document.getElementById(id),f5=v=>(+v).toFixed(5);
+const mk=s=>{s=s.replace(/\^/g,'**').replace(/\bln\b/g,'log').replace(/\bpi\b/gi,'PI').replace(/\be\b/g,'E').replace(/(\d|\))\s*(x|\()/g,'$1*$2').replace(/x\s*\(/g,'x*(').replace(/\)\s*x/g,')*x').replace(/(^|\()\s*-/g,(m,p)=>p+'0-');return new Function('x','with(Math){return ('+s+')}')};
+function run(){
+const out=$('out');
+try{
+const F=mk($('f').value),x0=mk($('x0').value)(0),tol=1e-4;
+const D=x=>{const h=1e-5*Math.max(1,Math.abs(x));return(F(x+h)-F(x-h))/(2*h)};
+if(!isFinite(F(x0)))throw new Error("الدالة مش معرّفة عند x₀");
+let rows=[],x=x0,prev=null;
+for(let i=0;i<50;i++){
+ const fx=F(x),dx=D(x);
+ rows.push({i,x,fx,dx});
+ if(prev!=null&&Math.abs(x-prev)<tol)break;
+ if(dx===0||!isFinite(dx))throw new Error("المشتقة = 0 عند x = "+x);
+ prev=x;x=x-fx/dx;
+ if(!isFinite(x))throw new Error("الحل مش بيتقارب");
+}
+const root=rows[rows.length-1].x;
+let h=`<div class="sc"><table><tr><th>i</th><th>x<sub>i</sub></th></tr>`;
+rows.forEach((r,k)=>h+=`<tr class="${k==rows.length-1?'last':''}"><td>${r.i}</td><td>${f5(r.x)}</td></tr>`);
+h+=`</table></div><div class="box">الجذر التقريبي: α = ${f5(root)}</div><canvas id="cv" width="860" height="360"></canvas>`;
+out.innerHTML=h;
+plot(F,rows,root);
+}catch(e){out.innerHTML='<p class="err">خطأ في الدالة: '+e.message+'</p>'}
+}
+function plot(F,rows,root){
+const cv=$('cv'),g=cv.getContext('2d'),W=cv.width,H=cv.height,st=getComputedStyle(document.documentElement);
+const col=n=>st.getPropertyValue(n).trim();
+const xs=rows.map(r=>r.x),span=Math.max(Math.max(...xs)-Math.min(...xs),1);
+const xmin=Math.min(...xs)-span*.5-.5,xmax=Math.max(...xs)+span*.5+.5;
+let ys=[];for(let i=0;i<=400;i++){const v=F(xmin+(xmax-xmin)*i/400);if(isFinite(v))ys.push(v)}
+ys.sort((a,b)=>a-b);
+let ymin=Math.min(ys[Math.floor(ys.length*.03)],0),ymax=Math.max(ys[Math.floor(ys.length*.97)],0);
+const p=(ymax-ymin)*.1||1;ymin-=p;ymax+=p;
+const X=x=>(x-xmin)/(xmax-xmin)*W,Y=y=>H-(y-ymin)/(ymax-ymin)*H;
+g.clearRect(0,0,W,H);g.strokeStyle=col('--bd');g.fillStyle=col('--mut');g.font='12px monospace';g.lineWidth=1;
+g.beginPath();g.moveTo(0,Y(0));g.lineTo(W,Y(0));if(xmin<0&&xmax>0){g.moveTo(X(0),0);g.lineTo(X(0),H)}g.stroke();
+for(let i=0;i<=8;i++){const v=xmin+(xmax-xmin)*i/8;g.fillText(v.toFixed(2),X(v)+2,Math.min(Math.max(Y(0)+14,12),H-4))}
+g.strokeStyle=col('--cv');g.lineWidth=2;g.beginPath();let on=false;
+for(let i=0;i<=600;i++){const x=xmin+(xmax-xmin)*i/600,y=F(x);if(!isFinite(y)){on=false;continue}on?g.lineTo(X(x),Y(y)):g.moveTo(X(x),Y(y));on=true}g.stroke();
+g.strokeStyle=col('--ac');g.lineWidth=1;
+for(let k=0;k<rows.length-1;k++){const a=rows[k],b=rows[k+1];g.setLineDash([4,3]);g.beginPath();g.moveTo(X(a.x),Y(0));g.lineTo(X(a.x),Y(a.fx));g.lineTo(X(b.x),Y(0));g.stroke()}
+g.setLineDash([]);g.fillStyle=col('--ac');
+rows.forEach(r=>{g.beginPath();g.arc(X(r.x),Y(r.fx),3,0,7);g.fill();g.fillText('x'+r.i,X(r.x)+4,Y(0)-6)});
+g.beginPath();g.arc(X(root),Y(0),6,0,7);g.fill();
+}
+run();
+</script></body></html>
